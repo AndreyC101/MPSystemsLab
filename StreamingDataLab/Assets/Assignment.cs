@@ -7,6 +7,7 @@ Pixel RPG characters created by Sean Browning.
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEditor;
 using System.IO;
 
 
@@ -76,7 +77,19 @@ static public class AssignmentPart1
 
     static public void SavePartyButtonPressed()
     {
-        StreamWriter sw = new StreamWriter(Application.dataPath + Path.DirectorySeparatorChar + "PartyData.txt");
+        SaveParty("test");
+    }
+
+    static public void LoadPartyButtonPressed()
+    {
+        GameContent.partyCharacters.Clear();
+        LoadParty("PartyData");
+        GameContent.RefreshUI();
+    }
+
+    static public void SaveParty(string name)
+    {
+        StreamWriter sw = new StreamWriter(Application.dataPath + Path.DirectorySeparatorChar + $"{name}.txt", false);
         foreach (PartyCharacter pc in GameContent.partyCharacters)
         {
             string line = $"{pc.classID},{pc.health},{pc.mana},{pc.strength},{pc.agility},{pc.wisdom},{pc.equipment.Count}";
@@ -89,27 +102,32 @@ static public class AssignmentPart1
         sw.Close();
     }
 
-    static public void LoadPartyButtonPressed()
+    static public void LoadParty(string name)
     {
-        GameContent.partyCharacters.Clear();
-
-        StreamReader sr = new StreamReader(Application.dataPath + Path.DirectorySeparatorChar + "PartyData.txt");
-        string line;
-        while ((line = sr.ReadLine()) != null)
+        try
         {
-            string[] csv = line.Split(',');
-            PartyCharacter pc = new PartyCharacter(int.Parse(csv[0]), int.Parse(csv[1]), int.Parse(csv[2]), int.Parse(csv[3]), int.Parse(csv[4]), int.Parse(csv[5]));
-            if (int.Parse(csv[6]) != 0)
-            {
-                for (int i = 0; i < int.Parse(csv[6]); i++)
+            using (StreamReader sr = new StreamReader(Application.dataPath + Path.DirectorySeparatorChar + $"{name}.txt")) {
+                string line;
+                while ((line = sr.ReadLine()) != null)
                 {
-                    pc.equipment.AddLast(int.Parse(csv[7 + i]));
+                    string[] csv = line.Split(',');
+                    PartyCharacter pc = new PartyCharacter(int.Parse(csv[0]), int.Parse(csv[1]), int.Parse(csv[2]), int.Parse(csv[3]), int.Parse(csv[4]), int.Parse(csv[5]));
+                    if (int.Parse(csv[6]) != 0)
+                    {
+                        for (int i = 0; i < int.Parse(csv[6]); i++)
+                        {
+                            pc.equipment.AddLast(int.Parse(csv[7 + i]));
+                        }
+                    }
+                    GameContent.partyCharacters.AddLast(pc);
                 }
+                sr.Close();
             }
-            GameContent.partyCharacters.AddLast(pc);
         }
-        sr.Close();
-        GameContent.RefreshUI();
+        catch(System.Exception e)
+        {
+            Debug.Log($"Could not open file {name}: {e}");
+        }
     }
 
 }
@@ -126,7 +144,7 @@ static public class AssignmentPart1
 //  This will enable the needed UI/function calls for your to proceed with your assignment.
 static public class AssignmentConfiguration
 {
-    public const int PartOfAssignmentThatIsInDevelopment = 1;
+    public const int PartOfAssignmentThatIsInDevelopment = 2;
 }
 
 /*
@@ -164,42 +182,109 @@ Good luck, journey well.
 
 static public class AssignmentPart2
 {
-
+    public static string currentSelectedName; //dropdown selected name
+    public static List<string> availableParties = new List<string>(); //internal list of available parties
     static public void GameStart()
     {
-
+        LoadAvailableParties();
         GameContent.RefreshUI();
 
     }
 
-    static public List<string> GetListOfPartyNames()
+    static public void LoadAvailableParties() //populates local list with values from the available parties file
     {
-        return new List<string>() {
-            "sample 1",
-            "sample 2",
-            "sample 3"
-        };
+        availableParties.Clear();
+        try
+        {
+            using (StreamReader sr = new StreamReader(Application.dataPath + Path.DirectorySeparatorChar + "AvailableParties.txt"))
+            {
+                string line;
+                while ((line = sr.ReadLine()) != null)
+                {
+                    availableParties.Add(line);
+                }
+                sr.Close();
+            }
+        }
+        catch (System.Exception e)
+        {
+            Debug.Log($"PartyData could not be opened: {e}");
+        }
+    }
 
+    static public void SaveAvailableParties() //saves local list to available parties file
+    {
+        StreamWriter sw = new StreamWriter(Application.dataPath + Path.DirectorySeparatorChar + "AvailableParties.txt", false);
+        foreach(string party in availableParties)
+        {
+            sw.WriteLine(party);
+        }
+        sw.Close();
+    }
+
+    static public List<string> GetListOfPartyNames() //returns internal list
+    {
+        return availableParties;
     }
 
     static public void LoadPartyDropDownChanged(string selectedName)
     {
+        GameContent.partyCharacters.Clear();
+        currentSelectedName = selectedName;
+        AssignmentPart1.LoadParty(selectedName);
         GameContent.RefreshUI();
     }
 
-    static public void SavePartyButtonPressed()
+    static public void SavePartyButtonPressed() // saves currently rolled party to existing file selected in the dropdown
     {
+        if (currentSelectedName == null || currentSelectedName == "")
+        {
+            Debug.Log("No save slot selected");
+            return;
+        }
+        AssignmentPart1.SaveParty(currentSelectedName);
         GameContent.RefreshUI();
     }
 
-    static public void NewPartyButtonPressed()
+    static public void NewPartyButtonPressed(string name) // saves currently rolled party to new file named by the input field text
     {
+        if (name == "" || name == null)
+        {
+            Debug.Log("No Name Entered");
+            return;
+        }
+        if (availableParties.Contains(name))
+        {
+            Debug.Log($"Party called {name} already exists");
+            return;
+        }
 
+        availableParties.Add(name);
+        StreamWriter sw = new StreamWriter(Application.dataPath + Path.DirectorySeparatorChar + $"{name}.txt");
+        foreach (PartyCharacter pc in GameContent.partyCharacters)
+        {
+            string line = $"{pc.classID},{pc.health},{pc.mana},{pc.strength},{pc.agility},{pc.wisdom},{pc.equipment.Count}";
+            foreach (int equipment in pc.equipment)
+            {
+                line += $",{equipment}";
+            }
+            sw.WriteLine(line);
+        }
+        sw.Close();
+        currentSelectedName = name;
+        SaveAvailableParties();
+        GameContent.RefreshUI();
     }
 
-    static public void DeletePartyButtonPressed()
+    static public void DeletePartyButtonPressed() //deletes the save file of the party selected in the dropdown
     {
-
+        if (availableParties.Contains(currentSelectedName)) availableParties.Remove(currentSelectedName);
+        SaveAvailableParties();
+        FileUtil.DeleteFileOrDirectory(Application.dataPath + Path.DirectorySeparatorChar + $"{currentSelectedName}.txt");
+        currentSelectedName = "";
+        GameContent.partyCharacters.Clear();
+        LoadAvailableParties();
+        GameContent.RefreshUI();    
     }
 
 }

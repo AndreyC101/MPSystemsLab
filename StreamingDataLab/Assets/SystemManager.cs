@@ -209,7 +209,7 @@ public class SystemManager : MonoBehaviour
 
     public void NewButtonPressed()
     {
-        AssignmentPart2.NewPartyButtonPressed();
+        AssignmentPart2.NewPartyButtonPressed(GetPartyNameFromInput());
     }
 
     public void DeleteButtonPressed()
