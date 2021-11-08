@@ -196,7 +196,7 @@ static public class AssignmentPart2
         availableParties.Clear();
         try
         {
-            using (StreamReader sr = new StreamReader(Application.dataPath + Path.DirectorySeparatorChar + "AvailableParties.txt"))
+            using (StreamReader sr = new StreamReader(Application.persistentDataPath + Path.DirectorySeparatorChar + "AvailableParties.txt"))
             {
                 string line;
                 while ((line = sr.ReadLine()) != null)
@@ -214,7 +214,7 @@ static public class AssignmentPart2
 
     static public void SaveAvailableParties() //saves local list to available parties file
     {
-        StreamWriter sw = new StreamWriter(Application.dataPath + Path.DirectorySeparatorChar + "AvailableParties.txt", false);
+        StreamWriter sw = new StreamWriter(Application.persistentDataPath + Path.DirectorySeparatorChar + "AvailableParties.txt", false);
         foreach(string party in availableParties)
         {
             sw.WriteLine(party);
@@ -260,17 +260,7 @@ static public class AssignmentPart2
         }
 
         availableParties.Add(name);
-        StreamWriter sw = new StreamWriter(Application.dataPath + Path.DirectorySeparatorChar + $"{name}.txt");
-        foreach (PartyCharacter pc in GameContent.partyCharacters)
-        {
-            string line = $"{pc.classID},{pc.health},{pc.mana},{pc.strength},{pc.agility},{pc.wisdom},{pc.equipment.Count}";
-            foreach (int equipment in pc.equipment)
-            {
-                line += $",{equipment}";
-            }
-            sw.WriteLine(line);
-        }
-        sw.Close();
+        AssignmentPart1.SaveParty(name);
         currentSelectedName = name;
         SaveAvailableParties();
         GameContent.RefreshUI();
@@ -280,13 +270,44 @@ static public class AssignmentPart2
     {
         if (availableParties.Contains(currentSelectedName)) availableParties.Remove(currentSelectedName);
         SaveAvailableParties();
-        FileUtil.DeleteFileOrDirectory(Application.dataPath + Path.DirectorySeparatorChar + $"{currentSelectedName}.txt");
+        FileUtil.DeleteFileOrDirectory(Application.persistentDataPath + Path.DirectorySeparatorChar + $"{currentSelectedName}.txt");
         currentSelectedName = "";
         GameContent.partyCharacters.Clear();
-        LoadAvailableParties();
-        GameContent.RefreshUI();    
+        GameContent.RefreshUI();
     }
 
+    static public void SendPartyToServer(NetworkedClient client)
+    {
+        client.SendMessageToHost(ClientToServerSignifiers.PartyTransferStart + "");
+        foreach (PartyCharacter pc in GameContent.partyCharacters)
+        {
+            string line = $"{pc.classID},{pc.health},{pc.mana},{pc.strength},{pc.agility},{pc.wisdom},{pc.equipment.Count}";
+            foreach (int equipment in pc.equipment)
+            {
+                line += $",{equipment}";
+            }
+            client.SendMessageToHost(ClientToServerSignifiers.PartyTransferData + "," + line);
+        }
+        client.SendMessageToHost(ClientToServerSignifiers.PartyTransferEnd + "");
+    }
+
+    static public void LoadPartyFromServer(LinkedList<string> data)
+    {
+        GameContent.partyCharacters.Clear();
+        foreach(string character in data)
+        {
+           string[] csv = character.Split(',');
+            PartyCharacter pc = new PartyCharacter(int.Parse(csv[1]), int.Parse(csv[2]), int.Parse(csv[3]), int.Parse(csv[4]), int.Parse(csv[5]), int.Parse(csv[6]));
+            if (int.Parse(csv[7]) != 0)
+            {
+                for (int i = 0; i < int.Parse(csv[7]); i++)
+                {
+                    pc.equipment.AddLast(int.Parse(csv[8 + i]));
+                }
+            }
+            GameContent.partyCharacters.AddLast(pc);
+        }
+    }
 }
 
 #endregion
